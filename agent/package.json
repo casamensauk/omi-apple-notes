@@ -1,0 +1,14 @@
+{
+  "name": "omi-notes-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/jxa && cp src/jxa/notes.js dist/jxa/notes.js",
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test dist/*.test.js",
+    "once": "node dist/index.js --once"
+  },
+  "devDependencies": { "typescript": "^5.6.0", "@types/node": "^22.7.0" }
+}

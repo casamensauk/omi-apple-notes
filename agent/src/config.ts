@@ -1,0 +1,56 @@
+import { readFileSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+/**
+ * Load KEY=VALUE pairs from the first config file we find. Kept dependency-free so the
+ * agent can run under launchd with nothing but a system Node.
+ */
+function loadEnvFile(): void {
+  const candidates = [
+    process.env.OMI_NOTES_ENV,
+    join(homedir(), '.config', 'omi-notes', 'config.env'),
+    join(process.cwd(), '.env'),
+  ].filter(Boolean) as string[];
+
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) continue;
+      const key = trimmed.slice(0, eq).trim();
+      let value = trimmed.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (!(key in process.env)) process.env[key] = value;
+    }
+    return;
+  }
+}
+
+loadEnvFile();
+
+function required(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing ${name}. Set it in ~/.config/omi-notes/config.env`);
+  return v;
+}
+
+export const config = {
+  relayUrl: required('RELAY_URL').replace(/\/+$/, ''),
+  agentToken: required('AGENT_TOKEN'),
+  /** Optional: only needed to seed the mirror before the first tool call pins a uid. */
+  uid: process.env.OMI_UID ?? '',
+  /** Bodies are fetched for this many most-recently-modified notes to answer read tools. */
+  mirrorLimit: Number(process.env.MIRROR_LIMIT ?? 60),
+  mirrorIntervalMs: Number(process.env.MIRROR_INTERVAL_MS ?? 5 * 60 * 1000),
+  longPollSeconds: Number(process.env.LONG_POLL_SECONDS ?? 25),
+  /** Folder new notes land in. Empty means the default account's default folder. */
+  defaultFolder: process.env.DEFAULT_FOLDER ?? '',
+};
