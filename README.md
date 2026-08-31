@@ -133,9 +133,18 @@ config. `agentConfigured: false` is how you spot it.
 ## Development
 
 ```bash
-cd agent && npm test        # unit tests for the HTML layer
+cd agent && npm test        # unit tests for the HTML and title-matching layers
 ./scripts/e2e-local.sh      # boots relay + agent locally, drives the real Omi HTTP calls
+./scripts/verify-live.sh    # drives the DEPLOYED relay + the running Mac agent
+./scripts/reload-agent.sh   # rebuild + restart the launchd service
 ```
+
+`reload-agent.sh` matters: Node loads `dist/` once at startup, so rebuilding alone leaves the
+old code running under launchd. A stale agent is what once sent a live check into an
+unrelated note.
+
+`verify-live.sh` pins a throwaway uid on the relay, so it always resets it afterwards —
+otherwise trust-on-first-use would lock your real Omi account out.
 
 `e2e-local.sh` creates a uniquely-named sandbox note in Apple Notes, exercises every tool
 against it, and moves it to Recently Deleted afterwards (`KEEP_NOTE=1` to keep it).
