@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { applyCommand, buildMirror, mirrorNoteFor, type Command } from './apply.js';
+import { pollChatOnce } from './chat.js';
 
 const AUTH = { authorization: `Bearer ${config.agentToken}` };
 let running = true;
@@ -73,6 +74,10 @@ async function main(): Promise<void> {
     if (/permission|Automation/i.test(e.message)) process.exitCode = 1;
   });
 
+  if (config.omiMcpKey) {
+    await pollChatOnce(log).catch((e) => log(`chat poll failed: ${e.message}`));
+  }
+
   if (once) {
     log('--once: draining any queued commands, then exiting');
     while (await pollOnce().catch(() => false)) {
@@ -85,6 +90,18 @@ async function main(): Promise<void> {
     syncMirror().catch((e) => log(`mirror sync failed: ${e.message}`));
   }, config.mirrorIntervalMs);
   mirrorTimer.unref();
+
+  // Omi's chat is the only channel that actually reaches this user's Omi, so it is polled
+  // independently of the relay queue. Both can drive Apple Notes.
+  if (config.omiMcpKey) {
+    const chatTimer = setInterval(() => {
+      pollChatOnce(log).catch((e) => log(`chat poll failed: ${e.message}`));
+    }, config.chatPollMs);
+    chatTimer.unref();
+    log(`watching Omi chat every ${Math.round(config.chatPollMs / 1000)}s`);
+  } else {
+    log('OMI_MCP_KEY not set; Omi chat will not be watched');
+  }
 
   let backoffMs = 1000;
   while (running) {

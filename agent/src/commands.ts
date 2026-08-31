@@ -1,3 +1,5 @@
+// Deliberately duplicated in relay/ and agent/: the two packages deploy independently
+// (one to Railway, one to a Mac) and neither should need a shared build step.
 /**
  * Turns spoken words into note commands.
  *

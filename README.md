@@ -54,6 +54,33 @@ Titles are matched loosely, so "my camping list" finds a note actually called **
 `add_to_note` takes an optional `section`, so "add a spare wheel under Trailer" lands under
 that heading rather than at the end.
 
+## How it actually reaches Omi
+
+Three routes exist; only the third works for a Mac push-to-talk user.
+
+| Route | Status |
+| --- | --- |
+| Chat tools (`/.well-known/omi-tools.json`) | Omi builds without a "Chat Tools Manifest URL" field cannot use it |
+| Trigger webhooks (`/omi/webhook`) | Only fire on **captured conversations** — never on push-to-talk chat |
+| **Polling Omi chat** | **Works.** The Mac agent reads chat history and acts on it |
+
+The catch that forced this: when you type or speak a note command, Omi answers *"Update
+Camping List started and is working in the background"* and then does nothing — that is
+Omi's own background agent, which cannot write to Apple Notes (it fails the same way on
+Notion). It never makes an outbound call, so no webhook or tool of ours is ever invoked.
+
+So the agent polls `get_chat_messages` over Omi's MCP endpoint every 15 seconds — the only
+place chat history is exposed, as there is no REST endpoint and no CLI command for it — and
+applies any note command it finds. Ignore Omi's "working in the background" reply; the note
+appears regardless.
+
+Chat messages are already addressed to Omi, so no wake word is required there. Speech-to-text
+mangles it anyway: real messages have arrived as *"Omit Add Ten Pegs"* and *"Ome Add A
+Generator"*, and a leading mis-hearing is stripped.
+
+On first run the agent starts watching from that moment, so your existing chat history is
+never replayed.
+
 ## Setup
 
 The relay is already deployed at **https://relay-production-a11d.up.railway.app** (Railway

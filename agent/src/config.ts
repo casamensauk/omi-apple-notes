@@ -51,6 +51,18 @@ export const config = {
   mirrorLimit: Number(process.env.MIRROR_LIMIT ?? 60),
   mirrorIntervalMs: Number(process.env.MIRROR_INTERVAL_MS ?? 5 * 60 * 1000),
   longPollSeconds: Number(process.env.LONG_POLL_SECONDS ?? 25),
+  /** Omi's MCP endpoint — the only place chat history is exposed. */
+  omiMcpUrl: process.env.OMI_MCP_URL ?? 'https://api.omi.me/v1/mcp/sse',
+  omiMcpKey: process.env.OMI_MCP_KEY ?? '',
+  /** How often to check Omi chat for new note commands. */
+  chatPollMs: Number(process.env.CHAT_POLL_MS ?? 15_000),
+  /**
+   * Everything in the chat is already addressed to Omi, so no wake word is demanded —
+   * but speech-to-text prefixes mangled versions of it ("Omit", "Ome"), which are
+   * stripped when they lead the message.
+   */
+  chatWakeWord: process.env.CHAT_WAKE_WORD ?? 'omi|omit|ome|omni',
+  chatRequireWakeWord: (process.env.CHAT_REQUIRE_WAKE_WORD ?? 'false').toLowerCase() === 'true',
   /** Folder new notes land in. Empty means the default account's default folder. */
   defaultFolder: process.env.DEFAULT_FOLDER ?? '',
   /**

@@ -82,3 +82,45 @@ test('the same utterance produces a stable dedup key regardless of item order', 
 test('splitItems strips articles and capitalises', () => {
   assert.deepEqual(splitItems('a tent, the stove and some pegs'), ['Tent', 'Stove', 'Pegs']);
 });
+
+// Chat messages are all addressed to Omi already, so no wake word is demanded there —
+// but speech-to-text still prefixes mangled versions of it.
+const chat = { wakeWord: 'omi|omit|ome|omni', requireWakeWord: false };
+const parseChat = (s: string) => parseSpokenCommand(s, chat);
+
+test('a mis-heard wake word does not break the command', () => {
+  // These are verbatim from real Omi chat history.
+  const a = parseChat('Omit Add Ten Pegs to my camping list');
+  assert.equal(a?.tool, 'add_to_note');
+  assert.equal(a?.title, 'Camping List');
+  assert.deepEqual(a?.items, ['Ten pegs']);
+
+  const b = parseChat('Ome Add A Generator to my camping list');
+  assert.equal(b?.tool, 'add_to_note');
+  assert.deepEqual(b?.items, ['Generator']);
+});
+
+test('a chat command with no wake word at all still works', () => {
+  const c = parseChat('Add a hey toss to my camping list.');
+  assert.equal(c?.tool, 'add_to_note');
+  assert.equal(c?.title, 'Camping List');
+  assert.deepEqual(c?.items, ['Hey toss']);
+});
+
+test('chat chatter is still ignored without a note verb', () => {
+  assert.equal(parseChat("I can't see the list in Notion."), null);
+  assert.equal(parseChat('I know. I want you to investigate why we can\'t do that to Notion.'), null);
+  assert.equal(parseChat('Update Camping List started and is working in the background.'), null);
+});
+
+test('a mid-sentence wake word is not stripped when it is not leading', () => {
+  // Stripping "omi" mid-sentence would eat the verb and mangle the command.
+  const c = parseChat('add the omi charger to my packing list');
+  assert.deepEqual(c?.items, ['Omi charger']);
+});
+
+test('a created list title stops at the word "list"', () => {
+  const c = parseChat('Create the camping list we talked about in Notion.');
+  assert.equal(c?.tool, 'create_note');
+  assert.equal(c?.title, 'Camping List');
+});
