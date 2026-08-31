@@ -96,7 +96,13 @@ tail -f ~/Library/Logs/omi-notes/agent.log   # watch it land
 ```
 
 Health check: `curl https://relay-production-a11d.up.railway.app/health` →
-`{"ok":true,"pending":0,"agentConfigured":true}`
+
+```json
+{"ok":true,"pending":0,"agentConfigured":true,"mirrorNotes":305,"mirrorAgeSeconds":42}
+```
+
+`mirrorNotes: 0` means the Mac agent has never synced; a large `mirrorAgeSeconds` means it
+has stopped. Both are answerable without log access.
 
 The relay starts even with no `AGENT_TOKEN` set — it serves `/health` and the manifest and
 refuses the agent endpoints with a 503 saying why, rather than crash-looping on missing

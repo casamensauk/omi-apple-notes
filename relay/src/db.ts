@@ -117,6 +117,20 @@ export function saveMirror(uid: string, mirror: Mirror): void {
   ).run(uid, JSON.stringify(mirror.notes), mirror.syncedAt);
 }
 
+/**
+ * Mirror rows are keyed by uid, but the agent starts syncing before any tool call has
+ * revealed one. Those early snapshots land here and are adopted once the uid is known.
+ */
+export const UNCLAIMED_MIRROR = '__unclaimed__';
+
+/** Re-key the pre-uid snapshot onto the real uid, so reads work from the very first call. */
+export function adoptUnclaimedMirror(uid: string): void {
+  const unclaimed = loadMirror(UNCLAIMED_MIRROR);
+  if (!unclaimed || loadMirror(uid)) return;
+  saveMirror(uid, unclaimed);
+  db.prepare(`DELETE FROM mirror WHERE uid = ?`).run(UNCLAIMED_MIRROR);
+}
+
 export function loadMirror(uid: string): Mirror | null {
   const row = db.prepare(`SELECT json, synced_at FROM mirror WHERE uid = ?`).get(uid) as
     | { json: string; synced_at: number }

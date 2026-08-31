@@ -27,7 +27,7 @@ echo "==> building"
 (cd agent && npm run --silent build)
 
 echo "==> starting relay on :$PORT"
-PORT="$PORT" DB_PATH="$WORK/test.db" AGENT_TOKEN="$TOKEN" ALLOWED_UIDS="$UID_TEST" \
+PORT="$PORT" DB_PATH="$WORK/test.db" AGENT_TOKEN="$TOKEN" \
   PUBLIC_BASE_URL="$BASE" WRITE_WAIT_MS=15000 \
   node relay/dist/index.js > "$WORK/relay.log" 2>&1 &
 RELAY_PID=$!
@@ -39,10 +39,16 @@ done
 curl -fsS "$BASE/health" >/dev/null || { echo "relay failed to start"; cat "$WORK/relay.log"; exit 1; }
 
 echo "==> starting agent"
-RELAY_URL="$BASE" AGENT_TOKEN="$TOKEN" OMI_UID="$UID_TEST" OMI_NOTES_ENV=/dev/null \
+RELAY_URL="$BASE" AGENT_TOKEN="$TOKEN" OMI_NOTES_ENV=/dev/null \
   node agent/dist/index.js > "$WORK/agent.log" 2>&1 &
 AGENT_PID=$!
-sleep 4
+
+echo "==> waiting for the agent's first mirror upload"
+for _ in $(seq 1 40); do
+  MIRROR=$(curl -fsS "$BASE/health" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["mirrorNotes"])' 2>/dev/null || echo 0)
+  [[ "${MIRROR:-0}" -gt 0 ]] && { echo "  mirror has $MIRROR notes"; break; }
+  sleep 1
+done
 
 call() {
   curl -fsS -X POST "$BASE/tools/$1" -H 'content-type: application/json' -d "$2" || true
@@ -50,6 +56,12 @@ call() {
 
 echo "==> manifest"
 curl -fsS "$BASE/.well-known/omi-tools.json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("  tools:", ", ".join(t["name"] for t in d["tools"]))'
+
+# The agent starts mirroring before any tool call has revealed a uid. This proves that
+# snapshot is kept and adopted, rather than 400'd away.
+echo "==> list_notes before any write (pre-uid mirror + trust-on-first-use pinning)"
+call list_notes "{\"uid\":\"$UID_TEST\",\"tool_name\":\"list_notes\",\"query\":\"camping\"}" | head -c 160
+echo
 
 echo "==> create_note"
 call create_note "{\"uid\":\"$UID_TEST\",\"tool_name\":\"create_note\",\"title\":\"$NOTE_TITLE\",\"items\":[\"Tent\",\"Sleeping bags\",\"Head torch\"]}"

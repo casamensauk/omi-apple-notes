@@ -13,6 +13,8 @@ import {
   purgeOlderThan,
   reapStaleClaims,
   saveMirror,
+  adoptUnclaimedMirror,
+  UNCLAIMED_MIRROR,
   patchMirrorNote,
   getSetting,
   setSetting,
@@ -91,6 +93,7 @@ function uidAllowed(uid: string): boolean {
   const pinned = getSetting('pinned_uid');
   if (!pinned) {
     setSetting('pinned_uid', uid);
+    adoptUnclaimedMirror(uid);
     console.log(`[relay] pinned first-seen uid ${uid}`);
     return true;
   }
@@ -130,7 +133,7 @@ async function dispatchWrite(
 }
 
 function mirrorFor(uid: string): { mirror: Mirror | null; stale: boolean } {
-  const mirror = loadMirror(uid);
+  const mirror = loadMirror(uid) ?? loadMirror(UNCLAIMED_MIRROR);
   if (!mirror) return { mirror: null, stale: true };
   return { mirror, stale: Date.now() - mirror.syncedAt > config.mirrorStaleMs };
 }
@@ -214,10 +217,17 @@ const server = createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && (path === '/' || path === '/health')) {
+      // Mirror counters make "is my Mac actually syncing?" answerable without log access.
+      const pinned = getSetting('pinned_uid');
+      const health = mirrorFor(pinned ?? UNCLAIMED_MIRROR);
       return send(res, 200, {
         ok: true,
         pending: pendingCount(),
         agentConfigured: config.agentToken.length > 0,
+        mirrorNotes: health.mirror?.notes.length ?? 0,
+        mirrorAgeSeconds: health.mirror
+          ? Math.round((Date.now() - health.mirror.syncedAt) / 1000)
+          : null,
       });
     }
 
@@ -276,9 +286,8 @@ const server = createServer(async (req, res) => {
 
       if (req.method === 'POST' && path === '/agent/mirror-patch') {
         const body = await readJson(req);
-        const uid = asString(body.uid) || getSetting('pinned_uid') || '';
+        const uid = asString(body.uid) || getSetting('pinned_uid') || UNCLAIMED_MIRROR;
         const note = body.note as Mirror['notes'][number] | undefined;
-        if (!uid) return send(res, 400, { error: 'No uid known yet' });
         if (!note || typeof note.id !== 'string') return send(res, 400, { error: 'Missing note' });
         patchMirrorNote(uid, note);
         return send(res, 200, { patched: note.id });
@@ -286,8 +295,7 @@ const server = createServer(async (req, res) => {
 
       if (req.method === 'POST' && path === '/agent/mirror') {
         const body = await readJson(req);
-        const uid = asString(body.uid) || getSetting('pinned_uid') || '';
-        if (!uid) return send(res, 400, { error: 'No uid known yet' });
+        const uid = asString(body.uid) || getSetting('pinned_uid') || UNCLAIMED_MIRROR;
         const notes = Array.isArray(body.notes) ? (body.notes as Mirror['notes']) : [];
         saveMirror(uid, { notes, syncedAt: Date.now() });
         return send(res, 200, { stored: notes.length });
