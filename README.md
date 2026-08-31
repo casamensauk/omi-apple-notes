@@ -123,7 +123,8 @@ config. `agentConfigured: false` is how you spot it.
   existing notes already use bullets, so appended items match them exactly.
 * **Your Mac must be awake** for a write to land. Until then it sits in the queue.
 * **Loose title matching cuts both ways.** "my list" is vague enough to hit the wrong note.
-  On a tie the most recently edited note wins.
+  On a tie the most recently edited note wins. Matching is token-based, never raw substring
+  — a note called "4176" must not claim "Omi E2E 1788164176", which it once did.
 * The mirror carries the 60 most recently modified notes in full, and titles for up to 300.
 * Apple Notes exposes **Recently Deleted as an ordinary folder**, so it is excluded explicitly
   — otherwise Omi could append to a note you had already deleted. The folder name is

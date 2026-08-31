@@ -64,8 +64,15 @@ call list_notes "{\"uid\":\"$UID_TEST\",\"tool_name\":\"list_notes\",\"query\":\
 echo
 
 echo "==> create_note"
-call create_note "{\"uid\":\"$UID_TEST\",\"tool_name\":\"create_note\",\"title\":\"$NOTE_TITLE\",\"items\":[\"Tent\",\"Sleeping bags\",\"Head torch\"]}"
-echo
+CREATED="$(call create_note "{\"uid\":\"$UID_TEST\",\"tool_name\":\"create_note\",\"title\":\"$NOTE_TITLE\",\"items\":[\"Tent\",\"Sleeping bags\",\"Head torch\"]}")"
+echo "$CREATED"
+
+# Refuse to keep writing unless we are certainly operating on our own sandbox note.
+# A fuzzy title match once sent these writes into a real, unrelated note.
+if [[ "$CREATED" != *"$NOTE_TITLE"* ]]; then
+  echo "ABORT: create_note did not act on \"$NOTE_TITLE\" — refusing to write further." >&2
+  exit 1
+fi
 
 echo "==> add_to_note (fuzzy title, spoken form)"
 call add_to_note "{\"uid\":\"$UID_TEST\",\"tool_name\":\"add_to_note\",\"title\":\"omi e2e $NONCE\",\"items\":[\"Tent pegs\",\"Gas canister\"]}"

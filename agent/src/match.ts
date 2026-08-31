@@ -18,23 +18,31 @@ function tokens(s: string): Set<string> {
  * Score how well a candidate title answers a spoken reference to it. Speech gives us
  * "my camping list" for a note actually called "Camping Kit", so token overlap beats
  * exact equality here.
+ *
+ * Matching is deliberately token-based, never raw substring: a note called "4176" is a
+ * substring of "Omi E2E 1788164176" and would otherwise claim it, which is how a test
+ * run once appended to an unrelated note.
  */
 export function score(query: string, candidate: string): number {
   const q = normalise(query);
   const c = normalise(candidate);
   if (!q || !c) return 0;
   if (q === c) return 1;
-  if (c.includes(q) || q.includes(c)) return 0.9;
 
   const qt = tokens(query);
   const ct = tokens(candidate);
   if (qt.size === 0 || ct.size === 0) return 0;
   let shared = 0;
   for (const t of qt) if (ct.has(t)) shared++;
-  // Jaccard, nudged up when every spoken word is present in the candidate.
+  if (shared === 0) return 0;
+
   const union = new Set([...qt, ...ct]).size;
   const jaccard = shared / union;
-  return shared === qt.size ? Math.max(jaccard, 0.75) : jaccard;
+  // Every spoken word appears in the title: "camping" -> "Camping Kit".
+  if (shared === qt.size) return Math.max(jaccard, 0.75);
+  // Every word of the title appears in what was spoken.
+  if (shared === ct.size) return Math.max(jaccard, 0.6);
+  return jaccard;
 }
 
 export function bestMatch<T>(
