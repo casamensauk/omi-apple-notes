@@ -11,7 +11,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/dist ./dist
 COPY package.json ./
-# Queue and note mirror live on the Railway volume mounted at /data.
-VOLUME ["/data"]
+# Queue and note mirror live on the Railway volume mounted at /data. Railway manages
+# that mount itself, so no Docker VOLUME directive here (Railway rejects it).
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
