@@ -236,6 +236,19 @@ const server = createServer(async (req, res) => {
       return send(res, 200, buildManifest());
     }
 
+    /**
+     * Omi's "Setup Completed URL". Setup here means the Mac agent is actually reachable,
+     * so this reports real state rather than a constant true — if the agent is not running,
+     * Omi tells the user their setup is incomplete instead of silently queueing forever.
+     */
+    if (req.method === 'GET' && path === '/setup-complete') {
+      const pinned = getSetting('pinned_uid');
+      const uid = asString(url.searchParams.get('uid') ?? '') || pinned || UNCLAIMED_MIRROR;
+      const { mirror, stale } = mirrorFor(uid);
+      const ready = config.agentToken.length > 0 && !!mirror && mirror.notes.length > 0 && !stale;
+      return send(res, 200, { is_setup_completed: ready });
+    }
+
     if (req.method === 'POST' && path in TOOL_PATHS) {
       const body = await readJson(req);
       const reply = await handleTool(TOOL_PATHS[path], body);
