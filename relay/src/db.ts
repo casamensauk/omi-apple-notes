@@ -204,3 +204,10 @@ export function markCommandSeen(key: string, ttlMs: number): boolean {
   db.prepare(`INSERT INTO seen_commands (key, created_at) VALUES (?, ?)`).run(key, now);
   return true;
 }
+
+/** Put a claimed command straight back on the queue, without waiting for the reaper. */
+export function releaseClaim(id: string): void {
+  db.prepare(
+    `UPDATE commands SET status = 'pending', updated_at = ? WHERE id = ? AND status = 'claimed'`,
+  ).run(Date.now(), id);
+}

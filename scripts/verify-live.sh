@@ -46,6 +46,18 @@ curl -fsS --max-time 20 -X POST "$RELAY_URL/tools/add_to_note" \
   -d "{\"uid\":\"$UID_TEST\",\"tool_name\":\"add_to_note\",\"title\":\"$TITLE\",\"items\":[\"Gas canister\"]}"
 echo
 
+echo "==> trigger webhook through the deployed relay (real-time transcript shape)"
+curl -fsS --max-time 20 -X POST "$RELAY_URL/omi/webhook?uid=$UID_TEST" \
+  -H 'content-type: application/json' \
+  -d "[{\"text\":\"Omi, add a folding chair to my $TITLE\",\"is_user\":true,\"start\":1,\"end\":3}]"
+echo
+
+echo "==> ordinary conversation must be ignored"
+curl -fsS --max-time 20 -X POST "$RELAY_URL/omi/webhook?uid=$UID_TEST" \
+  -H 'content-type: application/json' \
+  -d '[{"text":"we should add some pegs to the order before Friday","is_user":true}]'
+echo
+
 echo "==> confirming it landed in Apple Notes itself"
 osascript -l JavaScript -e "
   const N = Application('Notes');

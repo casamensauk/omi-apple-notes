@@ -12,6 +12,7 @@ import {
   pendingCount,
   purgeOlderThan,
   reapStaleClaims,
+  releaseClaim,
   saveMirror,
   adoptUnclaimedMirror,
   resetPinnedUid,
@@ -384,20 +385,44 @@ const server = createServer(async (req, res) => {
         if (immediate) return send(res, 200, immediate);
 
         const cmd = await new Promise<ReturnType<typeof claimNext>>((resolve) => {
-          const timer = setTimeout(() => {
-            bus.off('enqueued', onEnqueued);
-            resolve(null);
-          }, waitMs);
-          function onEnqueued() {
-            const claimed = claimNext();
-            if (!claimed) return; // another waiter won the race; keep waiting
+          let settled = false;
+          const finish = (value: ReturnType<typeof claimNext>) => {
+            if (settled) return;
+            settled = true;
             clearTimeout(timer);
             bus.off('enqueued', onEnqueued);
-            resolve(claimed);
+            req.off('close', onClose);
+            resolve(value);
+          };
+          const timer = setTimeout(() => finish(null), waitMs);
+          function onEnqueued() {
+            // An agent that has gone away must not take a command with it: claiming here
+            // and writing to a dead socket loses the command until the reaper rescues it.
+            if (req.destroyed || res.writableEnded) return finish(null);
+            const claimed = claimNext();
+            if (!claimed) return; // another waiter won the race; keep waiting
+            if (req.destroyed || res.writableEnded) {
+              releaseClaim(claimed.id);
+              return finish(null);
+            }
+            finish(claimed);
+          }
+          // The agent restarting, or any dropped connection, closes the request. Without
+          // this the handler lingers and swallows the next command that arrives.
+          function onClose() {
+            finish(null);
           }
           bus.on('enqueued', onEnqueued);
+          req.on('close', onClose);
         });
-        if (!cmd) return send(res, 204, {});
+        if (!cmd) {
+          if (req.destroyed || res.writableEnded) return;
+          return send(res, 204, {});
+        }
+        if (req.destroyed || res.writableEnded) {
+          releaseClaim(cmd.id);
+          return;
+        }
         return send(res, 200, cmd);
       }
 
