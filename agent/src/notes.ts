@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
 
 const execFileAsync = promisify(execFile);
 const SCRIPT = fileURLToPath(new URL('./jxa/notes.js', import.meta.url));
@@ -59,7 +60,7 @@ async function jxa<T>(payload: Record<string, unknown>): Promise<T> {
 }
 
 export const notes = {
-  list: () => jxa<NoteRef[]>({ op: 'list' }),
+  list: () => jxa<NoteRef[]>({ op: 'list', excludeFolders: config.excludeFolders }),
   get: (id: string) => jxa<NoteBody>({ op: 'get', id }),
   getMany: (ids: string[]) => jxa<NoteBody[]>({ op: 'getMany', ids }),
   create: (html: string, folder?: string) =>

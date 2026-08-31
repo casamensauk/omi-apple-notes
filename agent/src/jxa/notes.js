@@ -31,10 +31,16 @@ function run(argv) {
         // Walking accounts -> folders costs a handful of Apple Events; asking 300+ notes
         // for their container individually costs 300+ and returns null in bulk form.
         const out = [];
+        // Apple Notes enumerates the trash folder like any other, so without this an
+        // "add to my camping list" could land in a note the user already deleted.
+        const excluded = (payload.excludeFolders || []).map(function (f) {
+          return String(f).toLowerCase();
+        });
         for (const account of Notes.accounts()) {
           const accountName = account.name();
           for (const folder of account.folders()) {
             const folderName = folder.name();
+            if (excluded.indexOf(String(folderName).toLowerCase()) !== -1) continue;
             const ids = folder.notes.id();
             const names = folder.notes.name();
             const modified = folder.notes.modificationDate();

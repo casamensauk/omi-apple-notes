@@ -111,6 +111,9 @@ config. `agentConfigured: false` is how you spot it.
 * **Loose title matching cuts both ways.** "my list" is vague enough to hit the wrong note.
   On a tie the most recently edited note wins.
 * The mirror carries the 60 most recently modified notes in full, and titles for up to 300.
+* Apple Notes exposes **Recently Deleted as an ordinary folder**, so it is excluded explicitly
+  — otherwise Omi could append to a note you had already deleted. The folder name is
+  localised; override it with `EXCLUDE_FOLDERS` on a non-English system.
 
 ## Development
 

@@ -53,4 +53,12 @@ export const config = {
   longPollSeconds: Number(process.env.LONG_POLL_SECONDS ?? 25),
   /** Folder new notes land in. Empty means the default account's default folder. */
   defaultFolder: process.env.DEFAULT_FOLDER ?? '',
+  /**
+   * Folders never listed or matched against. Apple Notes exposes its trash as an ordinary
+   * folder, and its name is localised, so this is configurable for non-English systems.
+   */
+  excludeFolders: (process.env.EXCLUDE_FOLDERS ?? 'Recently Deleted')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 };
