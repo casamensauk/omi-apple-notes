@@ -149,15 +149,10 @@ async function handleTool(tool: ToolName, body: Record<string, unknown>): Promis
     case 'create_note': {
       const title = asString(body.title);
       if (!title) return { error: 'I need a title for the note.' };
-      const items = asItems(body.items);
-      const noteBody = asString(body.body);
-      if (items.length === 0 && !noteBody) {
-        return await dispatchWrite(uid, tool, { title, items: [], body: '', folder: asString(body.folder) });
-      }
       return await dispatchWrite(uid, tool, {
         title,
-        items,
-        body: noteBody,
+        items: asItems(body.items),
+        body: asString(body.body),
         folder: asString(body.folder),
       });
     }
