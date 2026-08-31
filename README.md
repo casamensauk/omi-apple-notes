@@ -56,51 +56,51 @@ that heading rather than at the end.
 
 ## Setup
 
-### 1. Deploy the relay
+The relay is already deployed at **https://relay-production-a11d.up.railway.app** (Railway
+project `omi-notes-relay`, building from this repo with root directory `/relay` and a volume
+at `/data`).
+
+### 1. Finish the wiring
 
 ```bash
-cd relay && railway up
+./scripts/finish-setup.sh
 ```
 
-Then, on the Railway service:
+This logs into Railway if needed, pushes your `AGENT_TOKEN` from
+`~/.config/omi-notes/config.env` **over stdin** so it never lands in a command line or a log,
+waits for the relay to report `agentConfigured: true`, then installs the Mac agent and
+smoke-tests the path.
 
-* attach a **volume mounted at `/data`** (the queue and mirror live there),
-* set `AGENT_TOKEN` to a fresh secret — `openssl rand -hex 32`,
-* set `PUBLIC_BASE_URL` to the generated `https://….up.railway.app` domain,
-* generate a public domain.
+Installing the agent runs it once in the foreground first, which is what makes macOS show the
+**Automation → Notes** prompt — a launchd-started process cannot surface that dialog
+reliably. Approve it when it appears.
 
-Check it: `curl https://….up.railway.app/health` →
+### 2. Register the app with Omi
+
+In the Omi app, create an app with the **External Integration** capability pointing at:
+
+```
+https://relay-production-a11d.up.railway.app/.well-known/omi-tools.json
+```
+
+The first tool call pins your Omi `uid`; every later call from a different uid is refused. To
+be stricter, set `ALLOWED_UIDS` (and `OMI_APP_ID`) on the relay.
+
+### 3. Try it
+
+> "Omi, add tent pegs and a gas canister to my camping list."
+
+```bash
+tail -f ~/Library/Logs/omi-notes/agent.log   # watch it land
+./scripts/uninstall-agent.sh                 # remove the service
+```
+
+Health check: `curl https://relay-production-a11d.up.railway.app/health` →
 `{"ok":true,"pending":0,"agentConfigured":true}`
 
 The relay starts even with no `AGENT_TOKEN` set — it serves `/health` and the manifest and
 refuses the agent endpoints with a 503 saying why, rather than crash-looping on missing
-config. `agentConfigured: false` in the health response is how you spot it.
-
-### 2. Register the app with Omi
-
-In the Omi app, create an app with the **External Integration** capability and point it at:
-
-```
-https://….up.railway.app/.well-known/omi-tools.json
-```
-
-The first tool call pins your Omi `uid`; every later call from a different uid is refused. To
-be stricter, set `ALLOWED_UIDS` (and `OMI_APP_ID`) explicitly on the relay.
-
-### 3. Install the Mac agent
-
-```bash
-./scripts/install-agent.sh
-```
-
-It asks for the relay URL and `AGENT_TOKEN`, writes `~/.config/omi-notes/config.env` (mode
-600), runs once in the foreground so macOS shows the **Automation → Notes** prompt, then
-installs a launchd service that starts at login.
-
-```bash
-tail -f ~/Library/Logs/omi-notes/agent.log   # watch it work
-./scripts/uninstall-agent.sh                 # remove the service
-```
+config. `agentConfigured: false` is how you spot it.
 
 ## Known limits
 
