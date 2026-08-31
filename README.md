@@ -69,7 +69,12 @@ Then, on the Railway service:
 * set `PUBLIC_BASE_URL` to the generated `https://….up.railway.app` domain,
 * generate a public domain.
 
-Check it: `curl https://….up.railway.app/health` → `{"ok":true,"pending":0}`
+Check it: `curl https://….up.railway.app/health` →
+`{"ok":true,"pending":0,"agentConfigured":true}`
+
+The relay starts even with no `AGENT_TOKEN` set — it serves `/health` and the manifest and
+refuses the agent endpoints with a 503 saying why, rather than crash-looping on missing
+config. `agentConfigured: false` in the health response is how you spot it.
 
 ### 2. Register the app with Omi
 

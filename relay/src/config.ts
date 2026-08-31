@@ -1,15 +1,13 @@
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required environment variable: ${name}`);
-  return v;
-}
-
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   /** Public https origin Railway serves this on, e.g. https://omi-notes.up.railway.app */
   publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? '').replace(/\/+$/, ''),
-  /** Shared secret the macOS agent presents to drain the queue. */
-  agentToken: required('AGENT_TOKEN'),
+  /**
+   * Shared secret the macOS agent presents to drain the queue. Optional at boot on
+   * purpose: a relay that crash-loops on missing config is harder to diagnose than one
+   * that starts, serves /health, and refuses the agent endpoints with a clear reason.
+   */
+  agentToken: process.env.AGENT_TOKEN ?? '',
   /** Omi app id; tool calls carrying a different app_id are rejected. Empty disables the check. */
   omiAppId: process.env.OMI_APP_ID ?? '',
   /**

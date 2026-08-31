@@ -219,7 +219,11 @@ const server = createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && (path === '/' || path === '/health')) {
-      return send(res, 200, { ok: true, pending: pendingCount() });
+      return send(res, 200, {
+        ok: true,
+        pending: pendingCount(),
+        agentConfigured: config.agentToken.length > 0,
+      });
     }
 
     if (req.method === 'GET' && path === '/.well-known/omi-tools.json') {
@@ -234,6 +238,11 @@ const server = createServer(async (req, res) => {
 
     // ---- macOS agent endpoints ----
     if (path.startsWith('/agent/')) {
+      if (!config.agentToken) {
+        return send(res, 503, {
+          error: 'This relay has no AGENT_TOKEN set yet, so the Mac agent cannot connect.',
+        });
+      }
       if (!agentAuthorised(req)) return send(res, 401, { error: 'Unauthorized' });
 
       if (req.method === 'GET' && path === '/agent/next') {
@@ -301,6 +310,9 @@ setInterval(() => purgeOlderThan(7 * 24 * 60 * 60 * 1000), 60 * 60 * 1000).unref
 
 server.listen(config.port, () => {
   console.log(`[relay] listening on :${config.port}`);
+  if (!config.agentToken) {
+    console.warn('[relay] AGENT_TOKEN is unset; the Mac agent cannot connect until it is set.');
+  }
   if (!config.publicBaseUrl) {
     console.warn('[relay] PUBLIC_BASE_URL is unset; manifest will advertise relative endpoints.');
   }
