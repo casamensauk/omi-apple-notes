@@ -18,8 +18,12 @@ export const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
-  /** How long a write tool waits for the Mac to confirm before replying "queued". */
-  writeWaitMs: Number(process.env.WRITE_WAIT_MS ?? 9000),
+  /**
+   * How long a write tool waits for the Mac to confirm before replying "queued".
+   * Omi requires tool endpoints to answer within 5 seconds, so this must stay under
+   * that budget or a successful write reads as a timeout to the user.
+   */
+  writeWaitMs: Number(process.env.WRITE_WAIT_MS ?? 4000),
   /** Mirror older than this is treated as stale, so read tools admit they may be behind. */
   mirrorStaleMs: Number(process.env.MIRROR_STALE_MS ?? 10 * 60 * 1000),
   dbPath: process.env.DB_PATH ?? '/data/omi-notes.db',

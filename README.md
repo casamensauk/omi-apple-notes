@@ -86,6 +86,14 @@ https://relay-production-a11d.up.railway.app/.well-known/omi-tools.json
 The first tool call pins your Omi `uid`; every later call from a different uid is refused. To
 be stricter, set `ALLOWED_UIDS` (and `OMI_APP_ID`) on the relay.
 
+If the wrong uid ever claims the relay (a stray test call, say), clear it — the note mirror
+is kept:
+
+```bash
+curl -X POST -H "Authorization: Bearer $AGENT_TOKEN" \
+  https://relay-production-a11d.up.railway.app/agent/reset-uid
+```
+
 ### 3. Try it
 
 > "Omi, add tent pegs and a gas canister to my camping list."

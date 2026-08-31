@@ -28,7 +28,7 @@ echo "==> building"
 
 echo "==> starting relay on :$PORT"
 PORT="$PORT" DB_PATH="$WORK/test.db" AGENT_TOKEN="$TOKEN" \
-  PUBLIC_BASE_URL="$BASE" WRITE_WAIT_MS=15000 \
+  PUBLIC_BASE_URL="$BASE" \
   node relay/dist/index.js > "$WORK/relay.log" 2>&1 &
 RELAY_PID=$!
 

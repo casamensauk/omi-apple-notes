@@ -167,3 +167,21 @@ export function patchMirrorNote(uid: string, note: Mirror['notes'][number]): voi
      ON CONFLICT(uid) DO UPDATE SET json = excluded.json`,
   ).run(uid, JSON.stringify(notes), current.syncedAt);
 }
+
+/**
+ * Forget the pinned uid so the next caller claims the relay. Trust-on-first-use is only
+ * safe if a wrong first call is recoverable — otherwise a stray request locks the owner
+ * out permanently. The mirror is re-keyed rather than dropped, so reads keep working.
+ */
+export function resetPinnedUid(): string | null {
+  const previous = getSetting('pinned_uid');
+  if (previous) {
+    const mirror = loadMirror(previous);
+    if (mirror) {
+      saveMirror(UNCLAIMED_MIRROR, mirror);
+      db.prepare(`DELETE FROM mirror WHERE uid = ?`).run(previous);
+    }
+    db.prepare(`DELETE FROM settings WHERE key = 'pinned_uid'`).run();
+  }
+  return previous;
+}

@@ -14,6 +14,7 @@ import {
   reapStaleClaims,
   saveMirror,
   adoptUnclaimedMirror,
+  resetPinnedUid,
   UNCLAIMED_MIRROR,
   patchMirrorNote,
   getSetting,
@@ -282,6 +283,12 @@ const server = createServer(async (req, res) => {
         if (!id) return send(res, 400, { error: 'Missing id' });
         const applied = completeCommand(id, ok, result);
         return send(res, 200, { applied });
+      }
+
+      if (req.method === 'POST' && path === '/agent/reset-uid') {
+        const previous = resetPinnedUid();
+        console.log(`[relay] pinned uid reset (was ${previous ?? 'unset'})`);
+        return send(res, 200, { reset: true, previous });
       }
 
       if (req.method === 'POST' && path === '/agent/mirror-patch') {
