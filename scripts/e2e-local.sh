@@ -86,6 +86,26 @@ echo "==> remove_from_note"
 call remove_from_note "{\"uid\":\"$UID_TEST\",\"tool_name\":\"remove_from_note\",\"title\":\"omi e2e $NONCE\",\"items\":[\"head torch\"]}"
 echo
 
+echo "==> trigger webhook: real-time transcript payload (what Omi actually POSTs)"
+curl -fsS -X POST "$BASE/omi/webhook?uid=$UID_TEST" -H 'content-type: application/json' \
+  -d "[{\"text\":\"Omi, add a head torch to my $NOTE_TITLE\",\"is_user\":true,\"start\":1,\"end\":3}]" || true
+echo
+
+echo "==> same utterance again (must be suppressed as a duplicate)"
+curl -fsS -X POST "$BASE/omi/webhook?uid=$UID_TEST" -H 'content-type: application/json' \
+  -d "[{\"text\":\"Omi, add a head torch to my $NOTE_TITLE\",\"is_user\":true,\"start\":1,\"end\":3}]" || true
+echo
+
+echo "==> trigger webhook: memory-creation payload shape"
+curl -fsS -X POST "$BASE/omi/webhook?uid=$UID_TEST" -H 'content-type: application/json' \
+  -d "{\"id\":\"mem_1\",\"transcript_segments\":[{\"text\":\"Omi, add a folding chair to my $NOTE_TITLE\",\"is_user\":true}]}" || true
+echo
+
+echo "==> ordinary conversation must be ignored"
+curl -fsS -X POST "$BASE/omi/webhook?uid=$UID_TEST" -H 'content-type: application/json' \
+  -d "[{\"text\":\"we should add some pegs to the order before Friday\",\"is_user\":true}]" || true
+echo
+
 sleep 2
 echo "==> read_note (served from the mirror, no Mac round trip)"
 call read_note "{\"uid\":\"$UID_TEST\",\"tool_name\":\"read_note\",\"title\":\"omi e2e $NONCE\"}"

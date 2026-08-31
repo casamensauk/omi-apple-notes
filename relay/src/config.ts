@@ -27,4 +27,13 @@ export const config = {
   /** Mirror older than this is treated as stale, so read tools admit they may be behind. */
   mirrorStaleMs: Number(process.env.MIRROR_STALE_MS ?? 10 * 60 * 1000),
   dbPath: process.env.DB_PATH ?? '/data/omi-notes.db',
+  /** Spoken prefix that marks an utterance as addressed to Omi rather than to a person. */
+  wakeWord: process.env.WAKE_WORD ?? 'omi',
+  /**
+   * Requiring the wake word is the main defence against writing notes from ordinary
+   * conversation, since trigger webhooks deliver everything the wearer says.
+   */
+  requireWakeWord: (process.env.REQUIRE_WAKE_WORD ?? 'true').toLowerCase() !== 'false',
+  /** How long a handled utterance is remembered, to suppress duplicate triggers. */
+  dedupeTtlMs: Number(process.env.DEDUPE_TTL_MS ?? 60 * 60 * 1000),
 };

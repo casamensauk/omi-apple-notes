@@ -77,22 +77,37 @@ reliably. Approve it when it appears.
 
 ### 2. Register the app with Omi
 
-In the Omi app, create an app with the **External Integration** capability pointing at:
+In the Omi app: **Apps → Create App**, capability **External Integration**, then:
 
-```
-https://relay-production-a11d.up.railway.app/.well-known/omi-tools.json
-```
+| Field | Value |
+| --- | --- |
+| Trigger Event | **Real-Time Transcript** (or Memory Creation — both work) |
+| Webhook URL | `https://relay-production-a11d.up.railway.app/omi/webhook` |
+| Setup Completed URL | `https://relay-production-a11d.up.railway.app/setup-complete` |
+| App Home URL | `https://github.com/casamensauk/omi-apple-notes` |
+| GitHub Repository | `https://github.com/casamensauk/omi-apple-notes` |
 
-The first tool call pins your Omi `uid`; every later call from a different uid is refused. To
-be stricter, set `ALLOWED_UIDS` (and `OMI_APP_ID`) on the relay.
+Omi builds that offer a **Chat Tools Manifest URL** field can instead point it at
+`/.well-known/omi-tools.json` and leave the trigger unset — the relay serves both paths, and
+the tool route gives Omi's assistant a cleaner grip on phrasing. The trigger webhook is the
+fallback for builds without that field.
 
-If the wrong uid ever claims the relay (a stray test call, say), clear it — the note mirror
-is kept:
+`Setup Completed URL` reports whether your Mac agent is genuinely reachable, so Omi tells you
+setup is incomplete instead of queueing notes into the void.
 
-```bash
-curl -X POST -H "Authorization: Bearer $AGENT_TOKEN" \
-  https://relay-production-a11d.up.railway.app/agent/reset-uid
-```
+**How speech becomes a note.** A trigger webhook receives *everything you say*, so the parser
+is deliberately strict: an utterance must carry the wake word **"omi"** and an explicit verb.
+
+| Say | Result |
+| --- | --- |
+| "Omi, add tent pegs and a gas canister to my camping list" | two items appended |
+| "Hey Omi, start a packing list with passport and charger" | new note created |
+| "Omi, take the head torch off my camping list" | item removed |
+| "we should add some pegs to the order" | **ignored** — no wake word |
+| "Omi, what's the weather?" | **ignored** — no note verb |
+
+Set `REQUIRE_WAKE_WORD=false` to drop that guard, or `WAKE_WORD` to change it. Both triggers
+can be enabled at once — identical utterances are de-duplicated for an hour.
 
 ### 3. Try it
 

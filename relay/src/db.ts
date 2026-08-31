@@ -185,3 +185,22 @@ export function resetPinnedUid(): string | null {
   }
   return previous;
 }
+
+db.exec(`CREATE TABLE IF NOT EXISTS seen_commands (
+  key TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL
+);`);
+
+/**
+ * Record an utterance as handled. Returns false if it was already seen, which is what
+ * stops the real-time transcript and the end-of-conversation memory trigger from both
+ * applying the same spoken command.
+ */
+export function markCommandSeen(key: string, ttlMs: number): boolean {
+  const now = Date.now();
+  db.prepare(`DELETE FROM seen_commands WHERE created_at < ?`).run(now - ttlMs);
+  const existing = db.prepare(`SELECT 1 FROM seen_commands WHERE key = ?`).get(key);
+  if (existing) return false;
+  db.prepare(`INSERT INTO seen_commands (key, created_at) VALUES (?, ?)`).run(key, now);
+  return true;
+}

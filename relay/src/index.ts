@@ -19,10 +19,30 @@ import {
   patchMirrorNote,
   getSetting,
   setSetting,
+  markCommandSeen,
 } from './db.js';
+import { commandKey, parseSpokenCommand } from './commands.js';
 import type { Mirror, ToolName, ToolReply } from './types.js';
 
 const MAX_BODY_BYTES = 1_000_000;
+
+/**
+ * Read a JSON body of any shape. Omi's real-time transcript trigger POSTs a bare array of
+ * segments, so the object-only reader below cannot be used for webhook payloads.
+ */
+async function readJsonAny(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY_BYTES) throw new Error('Request body too large');
+    chunks.push(chunk as Buffer);
+  }
+  if (chunks.length === 0) return {};
+  const raw = Buffer.concat(chunks).toString('utf8').trim();
+  if (!raw) return {};
+  return JSON.parse(raw);
+}
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
@@ -204,6 +224,48 @@ async function handleTool(tool: ToolName, body: Record<string, unknown>): Promis
   }
 }
 
+/**
+ * Omi's trigger webhooks deliver speech in batches, and a command can straddle two of
+ * them ("Omi, add tent pegs" / "to my camping list"). A short rolling buffer per user
+ * stitches those back together; it is in-memory because losing it on restart costs
+ * nothing worse than one missed command.
+ */
+const BUFFER_TTL_MS = 60_000;
+const BUFFER_MAX_CHARS = 600;
+const transcriptBuffers = new Map<string, { text: string; updatedAt: number }>();
+
+function bufferUtterance(uid: string, text: string): string {
+  const now = Date.now();
+  const current = transcriptBuffers.get(uid);
+  const carried = current && now - current.updatedAt < BUFFER_TTL_MS ? current.text : '';
+  const combined = `${carried} ${text}`.trim().slice(-BUFFER_MAX_CHARS);
+  transcriptBuffers.set(uid, { text: combined, updatedAt: now });
+  return combined;
+}
+
+interface TranscriptSegment {
+  text?: string;
+  is_user?: boolean;
+}
+
+/** Pull the wearer's own speech out of either trigger payload shape. */
+function wearerSpeech(body: unknown): string {
+  const record = body && typeof body === 'object' && !Array.isArray(body)
+    ? (body as Record<string, unknown>)
+    : {};
+  const segments: TranscriptSegment[] = Array.isArray(body)
+    ? (body as TranscriptSegment[])
+    : Array.isArray(record.transcript_segments)
+      ? (record.transcript_segments as TranscriptSegment[])
+      : [];
+  return segments
+    // Segments attributed to another speaker are conversation, not instructions to Omi.
+    .filter((s) => s && typeof s.text === 'string' && s.is_user !== false)
+    .map((s) => (s.text as string).trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
 const TOOL_PATHS: Record<string, ToolName> = {
   '/tools/create_note': 'create_note',
   '/tools/add_to_note': 'add_to_note',
@@ -247,6 +309,57 @@ const server = createServer(async (req, res) => {
       const { mirror, stale } = mirrorFor(uid);
       const ready = config.agentToken.length > 0 && !!mirror && mirror.notes.length > 0 && !stale;
       return send(res, 200, { is_setup_completed: ready });
+    }
+
+    /**
+     * Trigger webhook. Omi builds without the chat-tools manifest field can still drive
+     * this app by pointing a Memory Creation or Real-Time Transcript trigger here.
+     */
+    if (req.method === 'POST' && (path === '/omi/webhook' || path === '/webhook')) {
+      const body = await readJsonAny(req).catch(() => ({}));
+      const asRecord = (v: unknown): Record<string, unknown> =>
+        v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+      const uid =
+        asString(url.searchParams.get('uid') ?? '') || asString(asRecord(body).uid);
+      if (!uid) return send(res, 400, { error: 'Missing uid.' });
+      if (!uidAllowed(uid)) {
+        return send(res, 403, { error: 'This Apple Notes relay is not set up for your account.' });
+      }
+
+      const speech = wearerSpeech(body);
+      if (!speech) return send(res, 200, { ok: true, matched: false });
+
+      const parseOptions = {
+        wakeWord: config.wakeWord,
+        requireWakeWord: config.requireWakeWord,
+      };
+      // Try this batch alone before the rolling buffer: a command that is complete on its
+      // own must never be contaminated by whatever was said a moment earlier.
+      const combined = bufferUtterance(uid, speech);
+      const command =
+        parseSpokenCommand(speech, parseOptions) ?? parseSpokenCommand(combined, parseOptions);
+      if (!command) return send(res, 200, { ok: true, matched: false });
+
+      // Clear on any match, including a duplicate — leaving the utterance in the buffer
+      // would prepend it to the next one.
+      transcriptBuffers.delete(uid);
+
+      // The real-time and memory-creation triggers both see the same utterance.
+      if (!markCommandSeen(commandKey(uid, command), config.dedupeTtlMs)) {
+        return send(res, 200, { ok: true, matched: true, duplicate: true });
+      }
+      console.log(`[relay] matched ${command.tool} "${command.title}" from speech`);
+
+      const reply = await dispatchWrite(uid, command.tool, {
+        title: command.title,
+        items: command.items,
+      });
+      return send(res, 200, {
+        ok: true,
+        matched: true,
+        command: command.tool,
+        message: 'result' in reply ? reply.result : reply.error,
+      });
     }
 
     if (req.method === 'POST' && path in TOOL_PATHS) {
