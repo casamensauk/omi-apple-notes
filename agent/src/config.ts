@@ -53,8 +53,13 @@ export const config = {
   /** Omi's MCP endpoint — the only place chat history is exposed. */
   omiMcpUrl: process.env.OMI_MCP_URL ?? 'https://api.omi.me/v1/mcp/sse',
   omiMcpKey: process.env.OMI_MCP_KEY ?? '',
-  /** How often to check Omi chat for new note commands. */
-  chatPollMs: Number(process.env.CHAT_POLL_MS ?? 15_000),
+  /**
+   * How often to check Omi chat for new note commands. Defaults to 60s: Omi's managed
+   * cloud appears to meter account usage, and its LLM began returning 402s about four
+   * minutes after a 15s poll went live — ~240 calls/hour reads as abuse to a metering
+   * system. A minute of latency on a shopping-list item costs nothing.
+   */
+  chatPollMs: Number(process.env.CHAT_POLL_MS ?? 60_000),
   /**
    * Everything in the chat is already addressed to Omi, so no wake word is demanded —
    * but speech-to-text prefixes mangled versions of it ("Omit", "Ome"), which are
