@@ -104,6 +104,12 @@ const PATTERNS: Pattern[] = [
     build: (m) => ({ title: m[2], items: splitItems(m[1]) }),
   },
   {
+    // "create a new list called wiston" names the note Wiston, not "New List".
+    tool: 'create_note',
+    re: /^(?:start|create|make|begin|new)\s+(?:a|an|my|the)?\s*(?:new\s+)?(?:list|note)\s+(?:called|named|titled)\s+(.+?)(?:\s+(?:with|containing|including)\s+(.+))?$/,
+    build: (m) => ({ title: m[1], items: m[2] ? splitItems(m[2]) : [] }),
+  },
+  {
     tool: 'create_note',
     re: /^(?:start|create|make|begin|new)\s+(?:a|an|my|the)?\s*(?:new\s+)?(.+?)\s+(?:with|containing|including)\s+(.+)$/,
     build: (m) => ({ title: m[1], items: splitItems(m[2]) }),

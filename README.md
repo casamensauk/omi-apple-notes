@@ -60,8 +60,8 @@ Three routes exist; only the third works for a Mac push-to-talk user.
 
 | Route | Status |
 | --- | --- |
-| Chat tools (`/.well-known/omi-tools.json`) | Omi builds without a "Chat Tools Manifest URL" field cannot use it |
-| Trigger webhooks (`/omi/webhook`) | Only fire on **captured conversations** — never on push-to-talk chat |
+| Chat tools (`/.well-known/omi-tools.json`) | Built and tested, but Omi builds without a "Chat Tools Manifest URL" field cannot use it |
+| Trigger webhooks (`/omi/webhook`) | Built and tested, but only fire on **captured conversations** — never on push-to-talk chat |
 | **Polling Omi chat** | **Works.** The Mac agent reads chat history and acts on it |
 
 The catch that forced this: when you type or speak a note command, Omi answers *"Update
@@ -83,80 +83,56 @@ never replayed.
 
 ## Setup
 
-The relay is already deployed at **https://relay-production-a11d.up.railway.app** (Railway
-project `omi-notes-relay`, building from this repo with root directory `/relay` and a volume
-at `/data`).
-
-### 1. Finish the wiring
+Only the Mac agent is needed. The cloud relay is **not deployed** — see below.
 
 ```bash
-./scripts/finish-setup.sh
+./scripts/install-agent.sh
 ```
 
-This logs into Railway if needed, pushes your `AGENT_TOKEN` from
-`~/.config/omi-notes/config.env` **over stdin** so it never lands in a command line or a log,
-waits for the relay to report `agentConfigured: true`, then installs the Mac agent and
-smoke-tests the path.
+Then put your Omi MCP key in `~/.config/omi-notes/config.env` (mode 600):
 
-Installing the agent runs it once in the foreground first, which is what makes macOS show the
+```
+OMI_MCP_URL=https://api.omi.me/v1/mcp/sse
+OMI_MCP_KEY=omi_mcp_...
+```
+
+Installing runs the agent once in the foreground first, which is what makes macOS show the
 **Automation → Notes** prompt — a launchd-started process cannot surface that dialog
 reliably. Approve it when it appears.
 
-### 2. Register the app with Omi
+```bash
+tail -f ~/Library/Logs/omi-notes/agent.log   # watch it work
+./scripts/reload-agent.sh                    # rebuild + restart after code changes
+./scripts/uninstall-agent.sh                 # remove the service
+```
 
-In the Omi app: **Apps → Create App**, capability **External Integration**, then:
+`reload-agent.sh` matters: Node loads `dist/` once at startup, so rebuilding alone leaves the
+old code running under launchd.
 
-| Field | Value |
-| --- | --- |
-| Trigger Event | **Real-Time Transcript** (or Memory Creation — both work) |
-| Webhook URL | `https://relay-production-a11d.up.railway.app/omi/webhook` |
-| Setup Completed URL | `https://relay-production-a11d.up.railway.app/setup-complete` |
-| App Home URL | `https://github.com/casamensauk/omi-apple-notes` |
-| GitHub Repository | `https://github.com/casamensauk/omi-apple-notes` |
-
-Omi builds that offer a **Chat Tools Manifest URL** field can instead point it at
-`/.well-known/omi-tools.json` and leave the trigger unset — the relay serves both paths, and
-the tool route gives Omi's assistant a cleaner grip on phrasing. The trigger webhook is the
-fallback for builds without that field.
-
-`Setup Completed URL` reports whether your Mac agent is genuinely reachable, so Omi tells you
-setup is incomplete instead of queueing notes into the void.
-
-**How speech becomes a note.** A trigger webhook receives *everything you say*, so the parser
-is deliberately strict: an utterance must carry the wake word **"omi"** and an explicit verb.
+### Say this
 
 | Say | Result |
 | --- | --- |
 | "Omi, add tent pegs and a gas canister to my camping list" | two items appended |
-| "Hey Omi, start a packing list with passport and charger" | new note created |
+| "Omi, start a packing list with passport and charger" | new note created |
+| "Omi, create a new list called Wiston" | note named Wiston |
 | "Omi, take the head torch off my camping list" | item removed |
-| "we should add some pegs to the order" | **ignored** — no wake word |
-| "Omi, what's the weather?" | **ignored** — no note verb |
 
-Set `REQUIRE_WAKE_WORD=false` to drop that guard, or `WAKE_WORD` to change it. Both triggers
-can be enabled at once — identical utterances are de-duplicated for an hour.
+Titles match loosely, so "my camping list" finds a note called **Camping Kit**.
 
-### 3. Try it
+Omi's own assistant replies "…started and is working in the background" and does nothing —
+and may fail outright with a billing error. Neither matters: the agent reads your chat
+messages directly and never depends on Omi's AI answering.
 
-> "Omi, add tent pegs and a gas canister to my camping list."
+### The relay (not deployed)
 
-```bash
-tail -f ~/Library/Logs/omi-notes/agent.log   # watch it land
-./scripts/uninstall-agent.sh                 # remove the service
-```
-
-Health check: `curl https://relay-production-a11d.up.railway.app/health` →
-
-```json
-{"ok":true,"pending":0,"agentConfigured":true,"mirrorNotes":305,"mirrorAgeSeconds":42}
-```
-
-`mirrorNotes: 0` means the Mac agent has never synced; a large `mirrorAgeSeconds` means it
-has stopped. Both are answerable without log access.
-
-The relay starts even with no `AGENT_TOKEN` set — it serves `/health` and the manifest and
-refuses the agent endpoints with a 503 saying why, rather than crash-looping on missing
-config. `agentConfigured: false` is how you spot it.
+`relay/` is a complete, tested HTTPS service that serves an Omi chat-tools manifest and
+accepts trigger webhooks. It was deployed to Railway, verified end to end, and then torn
+down on 2026-08-31 because **neither route reaches a push-to-talk user** — see above. The
+code is kept for Omi builds that gain a chat-tools manifest field; deploy it with a
+Dockerfile build, a volume at `/data`, and `AGENT_TOKEN` + `PUBLIC_BASE_URL` set. Set
+`RELAY_URL` and `AGENT_TOKEN` in the agent config to switch it back on; leave them unset and
+the agent runs on chat polling alone.
 
 ## Known limits
 

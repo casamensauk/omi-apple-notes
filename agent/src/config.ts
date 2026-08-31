@@ -36,15 +36,14 @@ function loadEnvFile(): void {
 
 loadEnvFile();
 
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing ${name}. Set it in ~/.config/omi-notes/config.env`);
-  return v;
-}
-
 export const config = {
-  relayUrl: required('RELAY_URL').replace(/\/+$/, ''),
-  agentToken: required('AGENT_TOKEN'),
+  /**
+   * The cloud relay is optional. It exists for Omi builds that can call chat tools or
+   * trigger webhooks; a push-to-talk user needs none of it, since chat polling reaches
+   * Omi directly. Leave RELAY_URL unset and the agent simply does not use it.
+   */
+  relayUrl: (process.env.RELAY_URL ?? '').replace(/\/+$/, ''),
+  agentToken: process.env.AGENT_TOKEN ?? '',
   /** Optional: only needed to seed the mirror before the first tool call pins a uid. */
   uid: process.env.OMI_UID ?? '',
   /** Bodies are fetched for this many most-recently-modified notes to answer read tools. */

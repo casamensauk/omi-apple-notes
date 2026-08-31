@@ -3,6 +3,7 @@ import { applyCommand, buildMirror, mirrorNoteFor, type Command } from './apply.
 import { pollChatOnce } from './chat.js';
 
 const AUTH = { authorization: `Bearer ${config.agentToken}` };
+const relayEnabled = config.relayUrl.length > 0 && config.agentToken.length > 0;
 let running = true;
 
 function log(message: string, extra?: unknown): void {
@@ -22,6 +23,9 @@ async function postJson(path: string, body: unknown): Promise<void> {
 
 /** Push a snapshot of recent notes so read-side tools can answer without the Mac. */
 async function syncMirror(): Promise<void> {
+  // The mirror exists purely so the relay can answer read tools; with no relay there is
+  // nobody to tell.
+  if (!relayEnabled) return;
   const notes = await buildMirror();
   await postJson('/agent/mirror', { uid: config.uid || undefined, notes });
   log(`mirror synced (${notes.length} notes)`);
@@ -67,7 +71,7 @@ async function pollOnce(): Promise<boolean> {
 
 async function main(): Promise<void> {
   const once = process.argv.includes('--once');
-  log(`omi-notes-agent starting; relay=${config.relayUrl}`);
+  log(`omi-notes-agent starting; relay=${relayEnabled ? config.relayUrl : 'disabled'}`);
 
   await syncMirror().catch((e) => {
     log(`initial mirror sync failed: ${e.message}`);
@@ -79,6 +83,7 @@ async function main(): Promise<void> {
   }
 
   if (once) {
+    if (!relayEnabled) return;
     log('--once: draining any queued commands, then exiting');
     while (await pollOnce().catch(() => false)) {
       /* keep draining while work remains */
@@ -101,6 +106,13 @@ async function main(): Promise<void> {
     log(`watching Omi chat every ${Math.round(config.chatPollMs / 1000)}s`);
   } else {
     log('OMI_MCP_KEY not set; Omi chat will not be watched');
+  }
+
+  if (!relayEnabled) {
+    // Chat polling runs on its own timer, so just stay alive for it.
+    log('no relay configured; running on Omi chat polling alone');
+    while (running) await new Promise((r) => setTimeout(r, 60_000));
+    return;
   }
 
   let backoffMs = 1000;

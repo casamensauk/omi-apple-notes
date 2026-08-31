@@ -124,3 +124,15 @@ test('a created list title stops at the word "list"', () => {
   assert.equal(c?.tool, 'create_note');
   assert.equal(c?.title, 'Camping List');
 });
+
+test('a list named with "called" takes that name', () => {
+  // Regression: this produced a note titled "New List", dropping the actual name.
+  const a = parseChat('Create a new list called wiston.');
+  assert.equal(a?.tool, 'create_note');
+  assert.equal(a?.title, 'Wiston');
+  assert.deepEqual(a?.items, []);
+
+  const b = parseChat('Omi, make a note called Packing with passport and charger');
+  assert.equal(b?.title, 'Packing');
+  assert.deepEqual(b?.items, ['Passport', 'Charger']);
+});
