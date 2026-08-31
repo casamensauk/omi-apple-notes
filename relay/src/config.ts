@@ -34,6 +34,11 @@ export const config = {
    * conversation, since trigger webhooks deliver everything the wearer says.
    */
   requireWakeWord: (process.env.REQUIRE_WAKE_WORD ?? 'true').toLowerCase() !== 'false',
+  /**
+   * Log webhook payload shape (and, when on, a truncated transcript) to diagnose what Omi
+   * actually sends. Off by default: this is the wearer's private speech.
+   */
+  debugWebhook: (process.env.DEBUG_WEBHOOK ?? 'false').toLowerCase() === 'true',
   /** How long a handled utterance is remembered, to suppress duplicate triggers. */
   dedupeTtlMs: Number(process.env.DEDUPE_TTL_MS ?? 60 * 60 * 1000),
 };

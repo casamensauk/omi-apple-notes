@@ -320,14 +320,26 @@ const server = createServer(async (req, res) => {
       const body = await readJsonAny(req).catch(() => ({}));
       const asRecord = (v: unknown): Record<string, unknown> =>
         v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+      // Omi's account-level developer webhooks may not carry a uid at all, unlike app
+      // tool calls. This relay serves one person, so fall back to whoever already claimed
+      // it rather than rejecting a payload we can perfectly well act on.
       const uid =
-        asString(url.searchParams.get('uid') ?? '') || asString(asRecord(body).uid);
-      if (!uid) return send(res, 400, { error: 'Missing uid.' });
+        asString(url.searchParams.get('uid') ?? '') ||
+        asString(asRecord(body).uid) ||
+        asString(asRecord(body).user_id) ||
+        getSetting('pinned_uid') ||
+        'default';
       if (!uidAllowed(uid)) {
         return send(res, 403, { error: 'This Apple Notes relay is not set up for your account.' });
       }
 
       const speech = wearerSpeech(body);
+      if (config.debugWebhook) {
+        // Shape only by default; the text itself is the user's private speech.
+        const shape = Array.isArray(body) ? `array(${body.length})` : Object.keys(asRecord(body)).join(',');
+        console.log(`[relay] webhook uid=${uid} shape=${shape} speechChars=${speech.length}`);
+        if (speech) console.log(`[relay] speech: ${speech.slice(0, 300)}`);
+      }
       if (!speech) return send(res, 200, { ok: true, matched: false });
 
       const parseOptions = {
